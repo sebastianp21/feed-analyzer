@@ -1,0 +1,1 @@
+Xfeed-weather-browser-extension
