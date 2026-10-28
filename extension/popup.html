@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Feed Analyzer</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header>
+    <h1>Feed Analyzer</h1>
+    <span id="server-status" class="status" title="Server status">checking…</span>
+  </header>
+
+  <!-- Shown when the server can't be reached or the last request failed -->
+  <div id="error" class="error" hidden></div>
+
+  <section>
+    <p id="summary" class="summary">No posts analyzed yet.</p>
+    <p id="based-on" class="muted">Scroll your X feed to start.</p>
+    <!-- One row per category, filled in by popup.js -->
+    <ul id="bars" class="bars"></ul>
+    <p id="skipped" class="muted"></p>
+  </section>
+
+  <details>
+    <summary>Settings</summary>
+    <form id="settings">
+      <label for="server-url">Server address</label>
+      <div class="row">
+        <input id="server-url" type="url" placeholder="http://localhost:8000" required>
+        <button type="submit">Save</button>
+      </div>
+      <p class="muted">Must be on localhost or 127.0.0.1.</p>
+    </form>
+    <button id="reset" type="button" class="link">Reset stats</button>
+  </details>
+
+  <script src="popup.js"></script>
+</body>
+</html>

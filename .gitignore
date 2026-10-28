@@ -6,7 +6,7 @@ venv/
 .pytest_cache/
 
 # Data and trained models (too big for git)
-model/data/
+model/data/raw/
 model/output/
 *.safetensors
 *.bin

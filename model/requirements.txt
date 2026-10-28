@@ -1,0 +1,10 @@
+# Data prep, training and evaluation.
+# Colab already has torch; locally, for CPU-only:
+#   pip install torch --index-url https://download.pytorch.org/whl/cpu
+datasets>=3.0
+pandas>=2.0
+scikit-learn>=1.4
+transformers>=4.48
+accelerate>=1.0
+torch>=2.3
+pytest>=8.0

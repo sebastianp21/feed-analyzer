@@ -16,3 +16,7 @@ MAX_POSTS = int(os.environ.get("MAX_POSTS", "64"))
 
 # Longer posts are cut to this many characters before classification.
 MAX_CHARS = int(os.environ.get("MAX_CHARS", "1000"))
+
+# How many posts the model processes at once. Larger is faster on a GPU,
+# but uses more memory.
+BATCH_SIZE = int(os.environ.get("BATCH_SIZE", "16"))

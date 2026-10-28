@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Feed Analyzer",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Shows what share of your X feed is clickbait, news, outrage, or other.",
   "background": {
     "service_worker": "background.js",
@@ -13,6 +13,11 @@
       "strict_min_version": "121.0"
     }
   },
+  "action": {
+    "default_title": "Feed Analyzer",
+    "default_popup": "popup.html"
+  },
+  "permissions": ["storage"],
   "content_scripts": [
     {
       "matches": ["https://x.com/*"],
@@ -21,7 +26,7 @@
     }
   ],
   "host_permissions": [
-    "http://localhost:8000/*",
-    "http://127.0.0.1:8000/*"
+    "http://localhost/*",
+    "http://127.0.0.1/*"
   ]
 }

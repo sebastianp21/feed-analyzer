@@ -10,6 +10,11 @@ const SELECTORS = {
   permalink: 'a[href*="/status/"]:has(> time)', // the timestamp link, which points to the post itself
 };
 
+// X puts a language code on each post's text (lang="en", lang="es", ...).
+// We only classify English, plus X's codes for "no real language" (emoji only,
+// links only, undetermined), since those are usually short English-feed posts.
+const LANGUAGES_TO_CLASSIFY = new Set(["en", "und", "zxx", "qme", "qam", "qct", "qht", "qst"]);
+
 const BATCH_SIZE = 10; // send as soon as this many posts are waiting...
 const BATCH_DELAY_MS = 1500; // ...or this long after the last new post
 const SCAN_DELAY_MS = 500; // X changes the page constantly; scan at most this often
@@ -32,9 +37,16 @@ function postKey(article, text) {
   return link ? link.getAttribute("href") : "text:" + text;
 }
 
+// True if the post is English (or has no language). Posts without a lang tag are kept.
+function isEnglish(textElement) {
+  const lang = textElement.getAttribute("lang");
+  return !lang || LANGUAGES_TO_CLASSIFY.has(lang);
+}
+
 // Look for new posts on the page and queue them.
 function scanPage() {
   scanTimer = null;
+  let skipped = 0;
   for (const article of document.querySelectorAll(SELECTORS.post)) {
     const textElement = article.querySelector(SELECTORS.text);
     if (!textElement) continue; // image/video-only posts have no text to classify
@@ -44,7 +56,20 @@ function scanPage() {
     if (!text || seenKeys.has(key)) continue;
 
     seenKeys.add(key);
-    queue.push({ key, text });
+    if (isEnglish(textElement)) {
+      queue.push({ key, text });
+    } else {
+      skipped++;
+    }
+  }
+
+  if (skipped > 0) {
+    try {
+      // The empty callback reads lastError so the browser doesn't warn about it.
+      chrome.runtime.sendMessage({ type: "skipped", count: skipped }, () => chrome.runtime.lastError);
+    } catch {
+      // Extension was reloaded while this tab stayed open; nothing to do.
+    }
   }
 
   if (queue.length >= BATCH_SIZE) {

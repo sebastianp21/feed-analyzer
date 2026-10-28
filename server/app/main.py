@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from . import config
+from .preprocess import normalize_text
 
 # The model is loaded once and shared by all requests.
 _classifier = None
@@ -21,7 +22,7 @@ def get_classifier():
     if _classifier is None:
         from .classifier import Classifier
 
-        _classifier = Classifier(config.MODEL_PATH)
+        _classifier = Classifier(config.MODEL_PATH, batch_size=config.BATCH_SIZE)
     return _classifier
 
 
@@ -59,7 +60,8 @@ def health():
 # A plain `def` (not async) so FastAPI runs the slow model call in a worker thread.
 @app.post("/classify", response_model=ClassifyResponse)
 def classify(request: ClassifyRequest, classifier=Depends(get_classifier)):
-    texts = [post.strip()[: config.MAX_CHARS] for post in request.posts]
+    # Same cleanup as the training data (mentions -> @user, links -> http).
+    texts = [normalize_text(post)[: config.MAX_CHARS] for post in request.posts]
 
     # Only send non-empty posts to the model; empty ones are "other" with 0 confidence.
     non_empty = [i for i, text in enumerate(texts) if text]

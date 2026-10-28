@@ -51,6 +51,11 @@ def test_blank_post_is_other_and_skips_model():
     assert fake.received == ["real post"]
 
 
+def test_posts_are_normalized_like_training_data():
+    client.post("/classify", json={"posts": ["@bob look https://t.co/x"]})
+    assert fake.received == ["look http"]
+
+
 def test_long_post_is_truncated():
     client.post("/classify", json={"posts": ["a" * (config.MAX_CHARS + 500)]})
     assert len(fake.received[0]) == config.MAX_CHARS
