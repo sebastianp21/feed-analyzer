@@ -9,7 +9,11 @@ Sources -> categories:
     news       Webis posts most judges called NOT clickbait (half)
                + TweetTopic "news_&_social_concern" (half)
     outrage    TweetEval "offensive", label offensive
-    other      TweetTopic tweets with no news topic
+    other      TweetTopic tweets with no news topic (half)
+               + TweetEval "emoji" tweets: short everyday captions (half)
+
+Why mix sources: with TweetTopic alone, almost no "other" post was short, so the
+model learned "short post = clickbait/outrage" and mislabelled short X captions.
 
 Output: data/processed/{train,val,test}.csv with columns text, category, source.
 The test split is never used in training.
@@ -18,6 +22,7 @@ The test split is never used in training.
 import argparse
 import json
 import random
+import re
 import sys
 import zipfile
 from pathlib import Path
@@ -35,7 +40,13 @@ from app.preprocess import normalize_text  # noqa: E402
 
 SEED = 42
 PER_CATEGORY = 2000  # posts per category after balancing
-WEBIS_NEWS_SHARE = 0.5  # share of "news" posts taken from Webis (rest from TweetTopic)
+# Where each category's posts come from, as shares of PER_CATEGORY.
+MIX = {
+    "clickbait": {"webis": 1.0},
+    "news": {"webis": 0.5, "tweet_topic": 0.5},
+    "outrage": {"tweet_eval_offensive": 1.0},
+    "other": {"tweet_topic": 0.5, "tweet_eval_emoji": 0.5},
+}
 VAL_SHARE = 0.15
 TEST_SHARE = 0.15
 MIN_CHARS = 10  # drop posts with fewer real characters than this (not counting @user/http)
@@ -119,10 +130,32 @@ def load_tweet_eval_offensive():
     data = load_dataset("cardiffnlp/tweet_eval", "offensive")
     offensive = data["train"].features["label"].str2int("offensive")
     return [
-        {"text": row["text"], "category": "outrage", "source": "tweet_eval"}
+        {"text": row["text"], "category": "outrage", "source": "tweet_eval_offensive"}
         for split in data
         for row in data[split]
         if row["label"] == offensive
+    ]
+
+
+# Instagram cross-posts end with a location like "@ Venice Beach" or "(@ Gym)".
+LOCATION_TAG = re.compile(r"\s*\(?@ [^@]*$")
+
+
+def clean_emoji_tweet(text):
+    """Remove leftovers specific to the TweetEval emoji subset, which X posts don't have."""
+    text = LOCATION_TAG.sub("", text)
+    text = text.replace("\ufe0f", "")  # invisible remains of the removed emoji
+    return text.rstrip("… ").strip()
+
+
+def load_tweet_eval_emoji():
+    from datasets import load_dataset
+
+    # The train split alone (45k tweets) is plenty.
+    data = load_dataset("cardiffnlp/tweet_eval", "emoji", split="train")
+    return [
+        {"text": clean_emoji_tweet(row["text"]), "category": "other", "source": "tweet_eval_emoji"}
+        for row in data
     ]
 
 
@@ -146,23 +179,29 @@ def clean(records):
 
 
 def balance(df, per_category=PER_CATEGORY, seed=SEED):
-    """Take per_category posts per category. News is split between Webis and TweetTopic."""
-
-    def take(rows, n, what):
-        if len(rows) < n:
-            raise ValueError(f"Only {len(rows)} posts for {what}, need {n}")
-        return rows.sample(n=n, random_state=seed)
-
-    webis_news = round(per_category * WEBIS_NEWS_SHARE)
-    parts = [
-        take(df[df.category == "clickbait"], per_category, "clickbait"),
-        take(df[(df.category == "news") & (df.source == "webis")], webis_news, "news (webis)"),
-        take(df[(df.category == "news") & (df.source == "tweet_topic")],
-             per_category - webis_news, "news (tweet_topic)"),
-        take(df[df.category == "outrage"], per_category, "outrage"),
-        take(df[df.category == "other"], per_category, "other"),
-    ]
+    """Take per_category posts per category, mixing sources as set in MIX."""
+    parts = []
+    for category, sources in MIX.items():
+        for source, share in sources.items():
+            n = round(per_category * share)
+            rows = df[(df.category == category) & (df.source == source)]
+            if len(rows) < n:
+                raise ValueError(f"Only {len(rows)} posts for {category} ({source}), need {n}")
+            parts.append(rows.sample(n=n, random_state=seed))
     return pd.concat(parts).sample(frac=1, random_state=seed).reset_index(drop=True)
+
+
+def print_length_check(df):
+    """Show post length per category. If one category is much shorter or longer
+    than the rest, the model can learn length instead of wording."""
+    words = df["text"].str.split().str.len()
+    short = words <= 6
+    table = pd.DataFrame({
+        "median_words": words.groupby(df["category"]).median(),
+        "share_short(<=6 words)": short.groupby(df["category"]).mean().round(2),
+    })
+    print("\nLength check:")
+    print(table.to_string())
 
 
 def split(df, seed=SEED):
@@ -192,12 +231,16 @@ def main():
     records += load_tweet_topic()
     print("Loading TweetEval offensive...")
     records += load_tweet_eval_offensive()
+    print("Loading TweetEval emoji...")
+    records += load_tweet_eval_emoji()
 
     df = clean(records)
     print("\nAvailable after cleaning:")
     print(df.groupby(["category", "source"]).size().to_string())
 
-    train, val, test = split(balance(df))
+    balanced = balance(df)
+    print_length_check(balanced)
+    train, val, test = split(balanced)
     PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
     for name, part in [("train", train), ("val", val), ("test", test)]:
         part.to_csv(PROCESSED_DIR / f"{name}.csv", index=False)

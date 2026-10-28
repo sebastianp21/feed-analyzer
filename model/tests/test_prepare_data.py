@@ -78,7 +78,7 @@ def test_clean_drops_duplicates_conflicts_and_short_posts():
         {"text": "Same text in two places", "category": "news", "source": "webis"},
         {"text": "same TEXT in two places", "category": "news", "source": "tweet_topic"},
         {"text": "Text with two different labels", "category": "news", "source": "webis"},
-        {"text": "Text with two different labels", "category": "outrage", "source": "tweet_eval"},
+        {"text": "Text with two different labels", "category": "outrage", "source": "tweet_eval_offensive"},
         {"text": "@user http", "category": "other", "source": "tweet_topic"},
     ]
     df = prep.clean(records)
@@ -87,18 +87,35 @@ def test_clean_drops_duplicates_conflicts_and_short_posts():
 
 def fake_pool(n=50):
     """n posts for every category/source combination balance() uses."""
-    groups = [("clickbait", "webis"), ("news", "webis"), ("news", "tweet_topic"),
-              ("outrage", "tweet_eval"), ("other", "tweet_topic")]
+    groups = [(cat, src) for cat, sources in prep.MIX.items() for src in sources]
     rows = [{"text": f"{cat} {src} post number {i}", "category": cat, "source": src}
             for cat, src in groups for i in range(n)]
     return pd.DataFrame(rows)
 
 
-def test_balance_gives_equal_categories_and_mixed_news():
+def test_balance_gives_equal_categories_and_mixed_sources():
     df = prep.balance(fake_pool(), per_category=20)
     assert df["category"].value_counts().to_dict() == {c: 20 for c in prep.CATEGORIES}
     news_sources = df[df.category == "news"]["source"].value_counts().to_dict()
     assert news_sources == {"webis": 10, "tweet_topic": 10}
+    other_sources = df[df.category == "other"]["source"].value_counts().to_dict()
+    assert other_sources == {"tweet_topic": 10, "tweet_eval_emoji": 10}
+
+
+def test_every_category_mix_adds_up_to_one():
+    assert sorted(prep.MIX) == sorted(prep.CATEGORIES)
+    for sources in prep.MIX.values():
+        assert sum(sources.values()) == 1.0
+
+
+@pytest.mark.parametrize("raw, expected", [
+    ("Beautiful day for a game \ufe0f @ Mariners Diamond Club", "Beautiful day for a game"),
+    ("Friends who workout together (@ Muv Training)", "Friends who workout together"),
+    ("Thank you festival, until next year…", "Thank you festival, until next year"),
+    ("Never a bad day with @user here", "Never a bad day with @user here"),  # mentions stay
+])
+def test_clean_emoji_tweet(raw, expected):
+    assert prep.clean_emoji_tweet(raw) == expected
 
 
 def test_balance_fails_loudly_when_short():
