@@ -1,0 +1,27 @@
+{
+  "manifest_version": 3,
+  "name": "Feed Analyzer",
+  "version": "0.1.0",
+  "description": "Shows what share of your X feed is clickbait, news, outrage, or other.",
+  "background": {
+    "service_worker": "background.js",
+    "scripts": ["background.js"]
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "feed-analyzer@class-project.local",
+      "strict_min_version": "121.0"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://x.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "host_permissions": [
+    "http://localhost:8000/*",
+    "http://127.0.0.1:8000/*"
+  ]
+}

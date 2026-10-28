@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+
+# Data and trained models (too big for git)
+model/data/
+model/output/
+*.safetensors
+*.bin
+*.onnx
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
