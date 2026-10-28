@@ -1,1 +1,1 @@
-Xfeed-weather-browser-extension
+feed analyzer for X 
